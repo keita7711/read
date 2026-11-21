@@ -6,17 +6,98 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="FOMO desk">
+  <meta name="apple-mobile-web-app-title" content="Desk">
   <meta name="theme-color" content="#000000">
+  <meta name="referrer" content="no-referrer">
   <title>FOMO desk</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <main>
-    <p>desk online</p>
+  <header class="navbar" id="navbar">
+    <button class="avatar tap" id="nav-avatar" aria-label="Account"><span id="avatar-letter">G</span></button>
+    <button class="nav-title tap" id="nav-title">Grok Bot <span class="chev">›</span></button>
+    <div class="nav-right">
+      <button class="icon-btn tap" id="nav-search" aria-label="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
+      <button class="icon-btn tap" id="nav-bell" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot hidden" id="bell-dot"></span></button>
+    </div>
+  </header>
+  <div class="error-row hidden" id="error-row" role="status"></div>
+
+  <main id="views">
+    <!-- HOME -->
+    <section class="view" id="view-home" data-tab="home">
+      <div class="balance-block">
+        <div class="balance-line">
+          <div class="odometer" id="balance" aria-live="polite"><span class="sk sk-balance"></span></div>
+          <span class="pill paper hidden" id="paper-badge">PAPER</span>
+        </div>
+        <div class="today-line">
+          <span class="today num" id="today-pct"><span class="sk sk-line"></span></span>
+          <span class="pill mult num hidden" id="mult-pill"></span>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chart-wrap">
+        <canvas id="main-chart" aria-label="Balance chart"></canvas>
+        <div class="chart-empty hidden" id="chart-empty">Waiting for the first trade</div>
+        <div class="sk sk-chart" id="chart-sk"></div>
+      </div>
+      <div class="range-switch" id="range-switch" role="tablist">
+        <button class="tap on" data-range="LIVE">LIVE</button><button class="tap" data-range="1H">1H</button><button class="tap" data-range="4H">4H</button><button class="tap" data-range="1D">1D</button><button class="tap" data-range="1W">1W</button><button class="tap" data-range="ALL">ALL</button>
+      </div>
+
+      <div class="screen-card tap" id="screen-card">
+        <div class="screen-frame" id="screen-frame">
+          <img class="buf" id="screen-a" alt=""><img class="buf" id="screen-b" alt="">
+          <div class="screen-none" id="screen-none">No frame yet</div>
+          <div class="screen-tl"><span class="sdot grey" id="screen-dot"></span><span id="screen-age">Waiting for a frame</span></div>
+          <div class="screen-tr" id="screen-lane">Idle</div>
+        </div>
+        <div class="screen-order" id="screen-order"><span class="muted">No orders yet</span></div>
+      </div>
+
+      <div class="section-head"><h2 id="bots-head">Bots</h2></div>
+      <div class="carousel" id="bot-carousel"></div>
+
+      <div class="section-head"><h2>Activity</h2><button class="link tap" id="see-all">See all</button></div>
+      <div class="list" id="home-activity"></div>
+    </section>
+
+    <!-- BOTS -->
+    <section class="view hidden" id="view-bots" data-tab="bots">
+      <h1 class="large-title">Bots</h1>
+      <div id="bots-list"></div>
+    </section>
+
+    <!-- ACTIVITY -->
+    <section class="view hidden" id="view-activity" data-tab="activity">
+      <h1 class="large-title">Activity</h1>
+      <div class="list" id="activity-list"></div>
+      <button class="more tap hidden" id="activity-more">Load more</button>
+    </section>
+
+    <!-- ACCOUNT -->
+    <section class="view hidden" id="view-account" data-tab="account">
+      <h1 class="large-title">Account</h1>
+      <div id="account-body"></div>
+    </section>
   </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab tap on" data-tab="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
+    <button class="tab tap" data-tab="bots"><svg viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg><span>Bots</span></button>
+    <button class="tab tap" data-tab="activity"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span>Activity</span></button>
+    <button class="tab tap" data-tab="account"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Account</span></button>
+  </nav>
+
+  <!-- full-screen layers -->
+  <div class="layer hidden" id="layer"><div class="layer-bar"><button class="back tap" id="layer-back">‹ Back</button><div class="layer-title" id="layer-title"></div><span class="layer-right" id="layer-right"></span></div><div class="layer-body" id="layer-body"></div></div>
+  <div class="sheet-scrim hidden" id="sheet-scrim"><div class="sheet" id="sheet"></div></div>
+  <div class="toast hidden" id="toast"></div>
+
+  <script src="links.js"></script>
+  <script src="chart.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
