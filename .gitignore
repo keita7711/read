@@ -1,0 +1,25 @@
+# Local data. This repository is public.
+d/
+data/
+
+# Environment files
+*.env
+.env
+.env.*
+
+# Tokens, keys, and other secrets
+*token*
+*Token*
+*TOKEN*
+*secret*
+*Secret*
+*SECRET*
+*credential*
+*Credential*
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+id_rsa
+id_ed25519

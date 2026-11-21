@@ -1,0 +1,46 @@
+# Deploys the repository root to GitHub Pages on every push to main.
+#
+# enablement: true asks configure-pages to create the Pages site when it is
+# missing. That API call needs a personal access token or a GitHub App token
+# with administration:write. The workflow GITHUB_TOKEN cannot create the site.
+# Once, set Settings → Pages → Build and deployment → Source to GitHub Actions.
+# After that source is saved, this workflow publishes https://keita7711.github.io/read/
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
