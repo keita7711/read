@@ -172,9 +172,11 @@
     var st = S.state; if (!st) return;
     var live = st.mode === "LIVE";
     $("#paper-badge").classList.toggle("hidden", live);
-    odometer($("#balance"), usd(st.balance)); $("#balance").setAttribute("aria-label", usd(st.balance));
-    var mp = $("#mult-pill");
-    if (st.multiplier != null) { mp.textContent = Number(st.multiplier).toFixed(2) + "x"; mp.classList.remove("hidden"); } else mp.classList.add("hidden");
+    /* Balance = REAL FOMO balance (agents.json realBalance: USDC cash + holdings at FOMO price). Never the desk PAPER ledger. */
+    var rb = realBal(), balTxt = rb && rb.ok && rb.equityUsd != null ? usd(rb.equityUsd) : DASH;
+    odometer($("#balance"), balTxt); $("#balance").setAttribute("aria-label", balTxt);
+    var mp = $("#mult-pill"), base = rb && rb.baseline;
+    if (rb && rb.ok && rb.equityUsd != null && base && base.equityUsd) { mp.textContent = (rb.equityUsd / base.equityUsd).toFixed(2) + "x"; mp.classList.remove("hidden"); } else mp.classList.add("hidden");
     renderChart(); renderScreenMeta(); renderCarousel(); renderHomeActivity(); renderBotsTab(); renderActivityTab(); renderDesign();
     if (S.tab === "account") loadAccount();
     var seen = +localStorage.getItem("desk.seen") || 0, top = ((S.activity && S.activity.rows) || [])[0];
@@ -709,31 +711,36 @@
   function sinceTxt(ts) { if (!ts) return DASH; var s = Date.now() / 1000 - ts; if (s < 60) return "now"; if (s < 3600) return Math.round(s / 60) + "m"; if (s < 86400) return Math.round(s / 3600) + "h"; return Math.round(s / 86400) + "d"; }
   function money(n) { if (n == null || !isFinite(n)) return DASH; return (n >= 0 ? "+" : "-") + "$" + Math.abs(n).toFixed(2); }
 
-  /* balance change line: $ and % vs this session's start cash (nights.start_cash) */
+  /* balance change line: real FOMO equity vs first real reading this session (agents.realBalance.baseline) */
+  function realBal() { return S.agents ? S.agents.realBalance || null : null; }
   function renderChange() {
-    var st = S.state || {}, cur = (((S.agents || {}).session || {}).current) || null;
-    var start = cur && cur.start_cash != null ? cur.start_cash : null;
-    var d = st.balance != null && start != null ? st.balance - start : null;
-    var p = st.todayPct != null ? st.todayPct : (d != null && start ? 100 * d / start : null);
-    var tp = $("#today-pct");
-    if (d == null && p == null) { tp.innerHTML = '<span class="muted">' + DASH + " this session</span>"; tp.className = "today num"; return; }
-    var up = (d != null ? d : p) >= 0;
-    tp.innerHTML = (up ? "▲ " : "▼ ") + esc(money(d)) + " (" + esc(pct(p)) + ') <span class="muted">this session</span>';
-    tp.className = "today num " + (up ? "green" : "red");
+    var rb = realBal(), tp = $("#today-pct"), src = $("#bal-src");
+    if (!rb) { tp.innerHTML = '<span class="muted">' + DASH + "</span>"; tp.className = "today num"; src.textContent = S.agents ? "Real balance: no data" : "Loading real balance…"; return; }
+    if (!rb.ok || rb.equityUsd == null) {
+      tp.innerHTML = '<span class="muted">' + DASH + "</span>"; tp.className = "today num";
+      src.textContent = "Real balance unavailable: " + (rb.reason || (rb.unpriced ? rb.unpriced + " holding(s) without a FOMO price" : "no data")) + " · " + hm(rb.ts);
+      return;
+    }
+    var base = rb.baseline, d = base ? rb.equityUsd - base.equityUsd : null, p = base && base.equityUsd ? 100 * d / base.equityUsd : null;
+    var lbl = !base ? "" : (/session start/.test(base.note || "") && !/first/.test(base.note || "") ? "this session" : "since " + hm(base.ts));
+    if (d == null) { tp.innerHTML = '<span class="muted">' + DASH + "</span>"; tp.className = "today num"; }
+    else { var up = d >= 0; tp.innerHTML = (up ? "▲ " : "▼ ") + esc(money(d)) + " (" + esc(pct(p)) + ') <span class="muted">' + esc(lbl) + "</span>"; tp.className = "today num " + (up ? "green" : "red"); }
+    src.textContent = "Cash " + usd(rb.cashUsd) + " · Holdings " + usd(rb.holdingsUsd) + " · FOMO " + hm(rb.ts);
   }
 
   /* SVG equity chart: green gradient, dots, floating trade-PnL markers with coin avatars */
-  function chartFor(rg) {
-    var C = S.charts && S.charts.ranges && S.charts.ranges[rg];
-    return C || (rg === S.range ? S.chart : null);
+  var RANGE_S = { "1H": 3600, "4H": 14400, "1D": 86400, "1W": 604800 };
+  function chartFor(rg) { /* real FOMO balance readings only (agents.realBalance.history) */
+    var rb = realBal(); if (!rb) return null;
+    var h = rb.history || [], now = Date.now() / 1000, cur = ((S.agents || {}).session || {}).current;
+    var from = rg === "LIVE" ? (cur ? cur.started_at : 0) : rg === "ALL" ? 0 : now - RANGE_S[rg];
+    return { range: rg, points: h.filter(function (p) { return p.ts >= from; }), marks: [] };
   }
   function renderChart() {
-    var c = chartFor(S.range) || S.chart, el = $("#eq-chart"); if (!el) return;
+    var c = chartFor(S.range), el = $("#eq-chart"); if (!el) return;
     $("#chart-sk").classList.add("hidden");
     var pts = ((c && c.points) || []).filter(function (p) { return p && p.value != null && isFinite(p.value); });
-    var cur = ((S.agents || {}).session || {}).current, st0 = S.state || {};
-    if (S.range === "LIVE" && !pts.length && cur && cur.start_cash != null && st0.balance != null) /* real: session start cash (nights) + current balance */
-      pts = [{ ts: cur.started_at, value: cur.start_cash }, { ts: st0.updatedAt || Math.floor(Date.now() / 1000), value: st0.balance }];
+
     $("#chart-empty").classList.toggle("hidden", pts.length > 0);
     if (!pts.length) { el.innerHTML = ""; $("#chart-marks").innerHTML = ""; return; }
     var W = el.clientWidth || 360, H = el.clientHeight || 210, pl = 6, pr = 6, pt = 34, pb = 14;
@@ -926,7 +933,7 @@
     if (t.closest("#cancel-sheet") || t.id === "sheet-scrim") return closeSheet();
     if (t.closest("#screen-card")) return openScreenFull();
     var rb = t.closest("#range-switch button");
-    if (rb) { S.range = rb.dataset.range; $$("#range-switch button").forEach(function (b) { b.classList.toggle("on", b === rb); }); if (planB()) { renderChart(); return; } get.chart(S.range).then(function (c) { S.chart = c; renderChart(); }).catch(function () {}); return; }
+    if (rb) { S.range = rb.dataset.range; $$("#range-switch button").forEach(function (b) { b.classList.toggle("on", b === rb); }); renderChart(); return; }
     var card = t.closest(".ag-card"); if (card) { setTab("bots"); var el = $("#bot-" + AGENT_SRC[card.dataset.agent]); if (el) setTimeout(function () { el.scrollIntoView(); }, 50); return; }
     var mr = t.closest(".msg-row"); if (mr) { var sm = seenMap(); sm[mr.dataset.msg] = Math.floor(Date.now() / 1000); localStorage.setItem("desk.msgSeen", JSON.stringify(sm)); renderMessages(); var src = AGENT_SRC[mr.dataset.msg]; var be = src && $("#bot-" + src); if (be) be.scrollIntoView({ behavior: "smooth" }); else setTab("activity"); return; }
     var wb = t.closest("[data-whale]"); if (wb) return openWhale(wb.dataset.whale);

@@ -318,3 +318,5 @@ html, body { background: var(--bg); }
 .chip { background: var(--card2); border-radius: 16px; padding: 7px 14px; font-size: 14px; font-weight: 600; }
 .tab.on { color: #fff; }
 .confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
+
+.bal-src { font-size: 13px; margin-top: 4px; }
