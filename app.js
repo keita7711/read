@@ -745,10 +745,11 @@
     if (!pts.length) { el.innerHTML = ""; $("#chart-marks").innerHTML = ""; return; }
     var W = el.clientWidth || 360, H = el.clientHeight || 210, pl = 6, pr = 6, pt = 34, pb = 14;
     var t0 = pts[0].ts, t1 = pts[pts.length - 1].ts, lo = Infinity, hi = -Infinity;
-    if (S.range === "LIVE" && S.state && S.state.nightStart) t0 = Math.min(t0, S.state.nightStart);
+
     if (t1 <= t0) { t1 = t0 + 1; }
     pts.forEach(function (p) { lo = Math.min(lo, p.value); hi = Math.max(hi, p.value); });
-    if (hi - lo < 1e-9) { lo -= 1; hi += 1; } else { var pad = (hi - lo) * 0.12; lo -= pad; hi += pad; }
+    var minSpan = Math.max(0.5, Math.abs(hi) * 0.04); /* keep cents-level noise flat */
+    if (hi - lo < minSpan) { var mid = (hi + lo) / 2; lo = mid - minSpan / 2; hi = mid + minSpan / 2; } else { var pad = (hi - lo) * 0.12; lo -= pad; hi += pad; }
     var X = function (t) { return pts.length === 1 ? W / 2 : pl + (W - pl - pr) * (t - t0) / (t1 - t0); };
     var Y = function (v) { return pt + (H - pt - pb) * (1 - (v - lo) / (hi - lo)); };
     var line = pts.map(function (p, i) { return (i ? "L" : "M") + X(p.ts).toFixed(1) + " " + Y(p.value).toFixed(1); }).join(" ");
