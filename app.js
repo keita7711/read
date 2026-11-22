@@ -625,15 +625,102 @@
       .catch(function (e) { toast(e.message); });
   }
 
+
+  /* ---------- Market & Journal (read-only snapshot files: market.json, journal.json) ---------- */
+  function cls(n) { return n == null || !isFinite(n) ? "" : n >= 0 ? "green" : "red"; }
+  function num(n, d) { return n == null || !isFinite(n) ? DASH : Number(n).toFixed(d == null ? 2 : d); }
+  function ext(u, label) { return u && /^https:\/\/fomo\.family\//.test(u) ? '<a class="fomo" href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(label || "FOMO") + "</a>" : ""; }
+  function taLine(ta) {
+    if (!ta) return '<span class="muted">TA: no data (not enough candles)</span>';
+    return "RSI " + num(ta.rsi14, 1) + " (" + esc(ta.rsiZone || DASH) + ") · MACD " + esc(ta.macdSide || DASH) +
+      " · BB " + (ta.bbPos == null ? DASH : Math.round(ta.bbPos * 100) + "%") + " · EMA20/50 " + esc(ta.trend || DASH);
+  }
+  function stamp(ts, label) { return '<div class="row-sub">' + esc(label) + (ts ? " · " + esc(age(ts) || "") : "") + "</div>"; }
+  function loadMarket() {
+    snap("market.json").then(renderMarket).catch(function () { $("#market-body").innerHTML = '<div class="card muted">Market: no data yet</div>'; });
+  }
+  function renderMarket(m) {
+    var h = [];
+    h.push('<div class="card">' + stamp(m.fetchedTs, "Updated " + (m.fetchedAt || DASH)) + '<div class="row-sub">' + esc((m.sources || []).join(" · ")) + "</div></div>");
+    var g = m.global;
+    h.push('<div class="section-head"><h2>Crypto market</h2></div><div class="list">');
+    if (g) h.push('<div class="row"><div class="row-main"><div class="row-title">Total mcap ' + compact(g.mcapUsd) + '</div><div class="row-sub">24h vol ' + compact(g.volUsd) + " · BTC dom " + num(g.btcDom, 1) + '%</div></div><div class="row-val ' + cls(g.mcapChg24h) + '">' + pct(g.mcapChg24h) + "</div></div>");
+    (m.majors || []).forEach(function (x) {
+      h.push('<div class="row"><div class="row-main"><div class="row-title">' + esc(x.symbol) + " " + price(x.price) + '</div><div class="row-sub">' + taLine(x.ta) + ' (1h)</div></div><div class="row-val ' + cls(x.chg24h) + '">' + pct(x.chg24h) + "</div></div>");
+    });
+    h.push("</div>");
+    h.push('<div class="section-head"><h2>Held coins · TA</h2></div><div class="list">');
+    if (!(m.held || []).length) h.push('<div class="row"><div class="row-main muted">No open positions</div></div>');
+    (m.held || []).forEach(function (x) {
+      h.push('<div class="row" data-mint="' + esc(x.mint) + '"><div class="row-main"><div class="row-title">' + esc(x.symbol || short(x.mint)) + ' <span class="pill mono">' + esc(x.mode) + '</span></div><div class="row-sub">' + taLine(x.ta) + (x.bars != null ? " · " + x.bars + " bars" : "") + '</div></div><div class="row-val">' + price(x.price) + '<span class="' + cls(x.chg24h) + '">' + pct(x.chg24h) + "</span>" + ext(x.link) + "</div></div>");
+    });
+    h.push("</div>");
+    h.push('<div class="section-head"><h2>Solana trending pools</h2></div><div class="list">');
+    if (!(m.solTrending || []).length) h.push('<div class="row"><div class="row-main muted">No data</div></div>');
+    (m.solTrending || []).forEach(function (x) {
+      h.push('<div class="row"><div class="row-main"><div class="row-title">' + esc(x.name) + '</div><div class="row-sub">Vol ' + compact(x.vol24h) + " · Liq " + compact(x.liq) + '</div></div><div class="row-val">' + price(x.price) + '<span class="' + cls(x.chg24h) + '">' + pct(x.chg24h, 1) + "</span>" + ext(x.link) + "</div></div>");
+    });
+    h.push("</div>");
+    h.push('<div class="section-head"><h2>CoinGecko trending</h2></div><div class="list">');
+    if (!(m.cgTrending || []).length) h.push('<div class="row"><div class="row-main muted">No data</div></div>');
+    (m.cgTrending || []).forEach(function (x) {
+      h.push('<div class="row"><div class="row-main"><div class="row-title">' + esc(x.name) + " · " + esc(x.symbol) + '</div><div class="row-sub">Rank ' + esc(x.rank == null ? DASH : x.rank) + '</div></div><div class="row-val">' + price(x.price) + '<span class="' + cls(x.chg24h) + '">' + pct(x.chg24h, 1) + "</span></div></div>");
+    });
+    h.push("</div>");
+    var f = m.forecast || {};
+    h.push('<div class="section-head"><h2>Forecast</h2></div><div class="card muted">TimesFM: not applicable · ' + esc(f.why || "") + "</div>");
+    if ((m.errors || []).length) h.push('<div class="card muted">Fetch errors: ' + esc(m.errors.join(", ")) + "</div>");
+    $("#market-body").innerHTML = h.join("");
+  }
+  function loadJournal() {
+    snap("journal.json").then(renderJournal).catch(function () { $("#journal-body").innerHTML = '<div class="card muted">Journal: no data yet</div>'; });
+  }
+  function statRows(a) {
+    var r = function (k, v, c) { return '<div class="row"><div class="row-main"><div class="row-title">' + k + '</div></div><div class="row-val ' + (c || "") + '">' + v + "</div></div>"; };
+    var es = a.edgeScore || {};
+    return '<div class="list">' +
+      r("Closed trades", a.closedTrades + " (" + a.wins + "W / " + a.losses + "L / " + a.breakevens + "BE)") +
+      r("Win rate", a.winRate == null ? DASH : num(a.winRate * 100, 1) + "%") +
+      r("Net P&L", usd(a.netPnl), cls(a.netPnl)) +
+      r("Profit factor", a.profitFactorInfinite ? "∞" : num(a.profitFactor)) +
+      r("Avg win / loss", usd(a.avgWin) + " / " + usd(a.avgLoss)) +
+      r("Expectancy / trade", usd(a.expectancy), cls(a.expectancy)) +
+      r("Max drawdown", usd(a.maxDrawdown)) +
+      r("Streaks (W / L)", a.maxWinStreak + " / " + a.maxLossStreak) +
+      r("Avg hold", a.avgHoldMin == null ? DASH : num(a.avgHoldMin, 1) + " min") +
+      r("Edge Score v2", es.score == null ? esc(es.note || DASH) : num(es.score)) + "</div>";
+  }
+  function renderJournal(j) {
+    var h = [], a = j.all || {};
+    h.push('<div class="card">' + stamp(j.updatedTs, "Updated " + (j.updatedAt || DASH)) + '<div class="row-sub">' + esc(j.source || "") + "</div></div>");
+    h.push('<div class="section-head"><h2>All</h2></div>' + statRows(a));
+    ["LIVE", "PAPER"].forEach(function (m) { var b = (j.byMode || {})[m]; if (b && b.closedTrades) h.push('<div class="section-head"><h2>' + m + "</h2></div>" + statRows(b)); });
+    h.push('<div class="section-head"><h2>P&amp;L calendar (JST)</h2></div><div class="list">');
+    if (!(a.calendar || []).length) h.push('<div class="row"><div class="row-main muted">No closed trades yet</div></div>');
+    (a.calendar || []).slice().reverse().forEach(function (d) {
+      h.push('<div class="row"><div class="row-main"><div class="row-title">' + esc(d.day) + '</div><div class="row-sub">' + d.trades + ' trades</div></div><div class="row-val ' + cls(d.pnl) + '">' + usd(d.pnl) + "</div></div>");
+    });
+    h.push("</div>");
+    h.push('<div class="section-head"><h2>Trades</h2></div><div class="list">');
+    if (!(j.trades || []).length) h.push('<div class="row"><div class="row-main muted">No closed trades yet</div></div>');
+    (j.trades || []).forEach(function (t) {
+      h.push('<div class="row" data-mint="' + esc(t.mint) + '"><div class="row-main"><div class="row-title">' + esc(symOf(t.mint)) + ' <span class="pill mono">' + esc(t.mode) + '</span></div><div class="row-sub">' + esc(t.closedAt || DASH) + " · " + esc(t.reason || DASH) + " · " + price(t.entry) + " → " + price(t.exit) + '</div></div><div class="row-val ' + cls(t.pnl) + '">' + usd(t.pnl) + '<span>' + pct(t.pnlPct, 1) + "</span>" + ext(t.link) + "</div></div>");
+    });
+    h.push("</div>");
+    $("#journal-body").innerHTML = h.join("");
+  }
+
   /* ---------- tabs & events ---------- */
   function setTab(t) {
-    if (["home", "bots", "activity", "account"].indexOf(t) < 0) t = "home";
+    if (["home", "bots", "activity", "market", "journal", "account"].indexOf(t) < 0) t = "home";
     S.tab = t;
     $$(".view").forEach(function (v) { v.classList.toggle("hidden", v.dataset.tab !== t); });
     $$(".tab").forEach(function (b) { b.classList.toggle("on", b.dataset.tab === t); });
     window.scrollTo(0, 0);
     if (t === "bots") loadDecisions();
     if (t === "account") loadAccount(true);
+    if (t === "market") loadMarket();
+    if (t === "journal") loadJournal();
     if (t === "activity") { var top = ((S.activity && S.activity.rows) || [])[0]; if (top) { localStorage.setItem("desk.seen", top.id); $("#bell-dot").classList.add("hidden"); } }
     if (t === "home" && S.chart) setTimeout(renderChart, 0);
   }
@@ -676,5 +763,6 @@
   startStream();
   setInterval(screenTick, planB() ? 15000 : 1000); screenTick();
   setInterval(renderScreenAge, 1000);
+  setInterval(function () { if (document.hidden) return; if (S.tab === "market") loadMarket(); if (S.tab === "journal") loadJournal(); }, 60000);
   window.__desk = S;
 })();
