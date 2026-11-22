@@ -1,0 +1,132 @@
+{
+ "date": "2026-11-22 09:51 JST",
+ "entries": [
+  {
+   "rank": 1,
+   "handle": "OLedsed",
+   "rank7d": 47,
+   "pnl7d": "+$31,173",
+   "pnl30d": "+$113,483",
+   "trades": 4792,
+   "last": "26m ago",
+   "coin": "攀豹豹",
+   "mcap": "$63,547",
+   "why": "green on 7d and 30d, 15 coins in the last 25 trades, 11 buys / 13 sells, sells in parts, biggest coin 17% of $",
+   "profile": "https://fomo.family/profile/OLedsed?source=share_link&r=savipww",
+   "last_buy": "https://fomo.family/coin?address=6ZbWPYxFf8XyQ6dncrPAef1yz4W9nRF6rX3CYuE7pump&chainId=1399811149&r=savipww&source=share_link",
+   "button": "Last buy",
+   "button_url": "https://fomo.family/coin?address=6ZbWPYxFf8XyQ6dncrPAef1yz4W9nRF6rX3CYuE7pump&chainId=1399811149&r=savipww&source=share_link"
+  },
+  {
+   "rank": 2,
+   "handle": "Grimbytez",
+   "rank7d": 13,
+   "pnl7d": "+$73,694",
+   "pnl30d": "+$74,944",
+   "trades": 80,
+   "last": "2h ago",
+   "coin": "BANDANA",
+   "mcap": "$426,061",
+   "why": "green on 7d and 30d, 5 coins in the last 25 trades, 16 buys / 8 sells, sells in parts, biggest coin 32% of $",
+   "profile": "https://fomo.family/profile/Grimbytez?source=share_link&r=savipww",
+   "last_buy": "https://fomo.family/coin?address=2KRbMf4itijwsTHb5dQtiBpfptyNmhpVzmpdj4qqN2yx&chainId=1399811149&r=savipww&source=share_link",
+   "button": "Last buy",
+   "button_url": "https://fomo.family/coin?address=2KRbMf4itijwsTHb5dQtiBpfptyNmhpVzmpdj4qqN2yx&chainId=1399811149&r=savipww&source=share_link"
+  },
+  {
+   "rank": 3,
+   "handle": "nadomac",
+   "rank7d": 95,
+   "pnl7d": "+$16,030",
+   "pnl30d": "+$59,343",
+   "trades": 1403,
+   "last": "5h ago",
+   "coin": "Shimajiro",
+   "mcap": "$3,405",
+   "why": "green on 7d and 30d, 14 coins in the last 25 trades, 16 buys / 9 sells, sells in parts, biggest coin 30% of $",
+   "profile": "https://fomo.family/profile/nadomac?source=share_link&r=savipww",
+   "last_buy": "https://fomo.family/coin?address=4xDs1ZPaxwrcLWehXSNaNNkvMH6MgyF8X4eYdnqPpump&chainId=1399811149&r=savipww&source=share_link",
+   "button": "Last buy",
+   "button_url": "https://fomo.family/coin?address=4xDs1ZPaxwrcLWehXSNaNNkvMH6MgyF8X4eYdnqPpump&chainId=1399811149&r=savipww&source=share_link"
+  },
+  {
+   "rank": 4,
+   "handle": "GrifterFgt",
+   "rank7d": 25,
+   "pnl7d": "+$50,288",
+   "pnl30d": "+$53,789",
+   "trades": 283,
+   "last": "6h ago",
+   "coin": "CALLOOOR",
+   "mcap": "$12,414",
+   "why": "green on 7d and 30d, 12 coins in the last 25 trades, 11 buys / 12 sells, sells in parts, biggest coin 38% of $",
+   "profile": "https://fomo.family/profile/GrifterFgt?source=share_link&r=savipww",
+   "last_buy": "https://fomo.family/coin?address=A48KeWUuiDSdRQBqAFssgyYATDuBv7cer54V2JSDpump&chainId=1399811149&r=savipww&source=share_link",
+   "button": "Last buy",
+   "button_url": "https://fomo.family/coin?address=A48KeWUuiDSdRQBqAFssgyYATDuBv7cer54V2JSDpump&chainId=1399811149&r=savipww&source=share_link"
+  },
+  {
+   "rank": 5,
+   "handle": "raretyvm",
+   "rank7d": 41,
+   "pnl7d": "+$34,445",
+   "pnl30d": "+$37,373",
+   "trades": 960,
+   "last": "12h ago",
+   "coin": "HUSS",
+   "mcap": "$179,916",
+   "why": "green on 7d and 30d, 7 coins in the last 25 trades, 12 buys / 9 sells, sells in parts, biggest coin 43% of $",
+   "profile": "https://fomo.family/profile/raretyvm?source=share_link&r=savipww",
+   "last_buy": "https://fomo.family/coin?address=3umHFkiMHyphCkLxtbf8Aabie8r5hxn86QeBAovTpump&chainId=1399811149&r=savipww&source=share_link",
+   "button": "Last buy",
+   "button_url": "https://fomo.family/coin?address=3umHFkiMHyphCkLxtbf8Aabie8r5hxn86QeBAovTpump&chainId=1399811149&r=savipww&source=share_link"
+  }
+ ],
+ "history": [
+  {
+   "date": "2026-11-22 09:51 JST",
+   "handles": [
+    "OLedsed",
+    "Grimbytez",
+    "nadomac",
+    "GrifterFgt",
+    "raretyvm"
+   ]
+  },
+  {
+   "date": "2026-11-21 21:26 JST",
+   "handles": [
+    "OLedsed",
+    "nadomac",
+    "GrifterFgt",
+    "Grimbytez",
+    "ioseekers"
+   ]
+  },
+  {
+   "date": "2026-11-21 00:50 JST",
+   "handles": [
+    "OLedsed",
+    "YetzerHaraTrap",
+    "xbox360npc",
+    "nadomac",
+    "ibuyfloors"
+   ]
+  },
+  {
+   "date": "2026-11-21 00:45 JST",
+   "handles": [
+    "OLedsed",
+    "YetzerHaraTrap",
+    "xbox360npc",
+    "nadomac",
+    "ibuyfloors"
+   ]
+  }
+ ],
+ "settings": {
+  "every": "24h",
+  "time": "21:30",
+  "night_start": "18:30"
+ }
+}

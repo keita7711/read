@@ -21,9 +21,21 @@
     if (p.get("tab")) startTab = p.get("tab");
     history.replaceState(null, "", location.pathname + location.search + (p.get("tab") ? "#tab=" + p.get("tab") : ""));
   })();
-  var planB = function () { return !!cfg.snap && !cfg.api; };
+  function hostOf(u) {
+    try { return new URL(u, location.href).hostname; } catch (e) { return ""; }
+  }
+  function isLoopback(h) { return h === "localhost" || h === "127.0.0.1"; }
+  function onDeskHost() { return isLoopback(location.hostname); }
+  function apiUnreachableFromHere() {
+    if (!cfg.api) return !onDeskHost();
+    return !onDeskHost() && isLoopback(hostOf(cfg.api));
+  }
+  var planB = function () {
+    if (cfg.api && !apiUnreachableFromHere()) return false;
+    return !!cfg.snap || (!onDeskHost() && location.protocol === "https:");
+  };
   var apiBase = function () { return cfg.api ? cfg.api.replace(/\/+$/, "") + "/api" : "api"; };
-  var snapBase = function () { return cfg.snap.replace(/\/+$/, ""); };
+  var snapBase = function () { return (cfg.snap || ".").replace(/\/+$/, "") || "."; };
 
   function req(path, opts) {
     opts = opts || {};
@@ -469,6 +481,66 @@
     get.account().then(function (a) { S.account = a; renderAccount(); }).catch(function () { if (!S.account) renderAccount(); });
   }
   var standalone = function () { return navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches); };
+
+  function minutesHHMM(s) {
+    var p = String(s || "").split(":");
+    if (p.length < 2) return null;
+    var h = +p[0], m = +p[1];
+    if (!isFinite(h) || !isFinite(m)) return null;
+    return h * 60 + m;
+  }
+  function copyPicksScheduleHtml(a) {
+    var st = (a && a.settings) || {};
+    var fb = S.copyPicksSettings || {};
+    var every = st["copy_picks.every"] || fb.every || "24h";
+    var time = st["copy_picks.time"] || fb.time || "21:30";
+    var night = st["desk.night_start"] || fb.night_start || "18:30";
+    var opts = ["off", "24h", "12h", "6h"];
+    var btns = opts.map(function (x) {
+      return '<button type="button" data-cp-every="' + x + '" class="' + (x === every ? "on" : "") + '">' + (x === "off" ? "Off" : x) + "</button>";
+    }).join("");
+    var warn = "";
+    var tm = minutesHHMM(time), nm = minutesHHMM(night);
+    if (every !== "off" && tm != null && nm != null && tm >= nm) {
+      warn = '<div class="note">Note: ' + esc(time) + " is after night_start (" + esc(night) + "). The setting should be before the night starts. Not changed.</div>";
+    }
+    return '<div class="group"><div class="cell col"><div class="seg" id="cp-every">' + btns + '</div></div>'
+      + '<div class="cell"><span class="grow">Time</span><input type="time" data-k="copy_picks.time" value="' + esc(time) + '" style="width:120px"></div>'
+      + warn + "</div>";
+  }
+  function copyPicksHtml(cp, a) {
+    var sched = copyPicksScheduleHtml(a);
+    if (!cp || !cp.entries || !cp.entries.length) {
+      return '<div class="group-title">Copy picks</div>' + sched;
+    }
+    var cards = cp.entries.map(function (e) {
+      var buy = e.button_url || (window.Links && Links.SIGNUP_URL) || "";
+      var label = (e.button === "Open FOMO") ? "Open FOMO" : ("last buy: " + (e.coin || "") + " at " + (e.mcap || "mcap n/a"));
+      return '<div class="cp-card"><div class="row"><b>#' + esc(e.rank) + " " + esc(e.handle) + '</b>'
+        + '<a class="btn" href="' + esc(e.profile) + '" target="_blank" rel="noopener">Profile</a></div>'
+        + '<div class="row"><span class="g">7d ' + esc(e.pnl7d) + '</span><span class="g">30d ' + esc(e.pnl30d) + '</span>'
+        + "<span>" + esc(Number(e.trades).toLocaleString()) + ' trades</span><span>last trade ' + esc(e.last) + "</span></div>"
+        + '<a class="buy" href="' + esc(buy) + '" target="_blank" rel="noopener">' + esc(label) + "</a>"
+        + '<label class="sw"><span class="switch"><input type="checkbox" data-copy-trader="' + esc(e.handle) + '"><span></span></span> Copy on desk</label></div>';
+    }).join("");
+    var past = (cp.history || []).slice(0, 7).map(function (x) {
+      return '<li class="cp-past">' + esc(x.date || "") + ": " + esc((x.handles || []).join(", ")) + "</li>";
+    }).join("");
+    return '<div class="group-title">Copy picks</div><div style="color:#888;font-size:15px;margin:0 4px 6px">' + esc(cp.date || "") + "</div>"
+      + cards + '<h3 style="font-size:20px;margin:16px 4px 8px">Last 7 lists</h3><ul style="padding-left:18px;margin:0">' + past + "</ul>"
+      + sched;
+  }
+  function bindCopyPicks(el) {
+    /* STEP 5 wires the switch. Off by default; no action yet. */
+    $$("[data-copy-trader]", el).forEach(function (inp) { inp.checked = false; });
+    $$("[data-cp-every]", el).forEach(function (b) {
+      b.onclick = function () {
+        $$("[data-cp-every]", el).forEach(function (o) { o.classList.toggle("on", o === b); });
+        saveSetting("copy_picks.every", b.getAttribute("data-cp-every"));
+      };
+    });
+  }
+
   function renderAccount() {
     var a = S.account, el = $("#account-body");
     if (!a) {
@@ -478,7 +550,7 @@
     }
     var live = a.mode === "LIVE", push = a.push || {};
     var order = ["scanner", "analyst", "social", "brain", "executor", "risk", "desk"], groups = a.groups || {};
-    var setHtml = order.concat(Object.keys(groups).filter(function (g) { return order.indexOf(g) < 0; })).filter(function (g) { return groups[g]; }).map(function (g) {
+    var setHtml = order.concat(Object.keys(groups).filter(function (g) { return order.indexOf(g) < 0; })).filter(function (g) { return groups[g] && g !== "copy_picks"; }).map(function (g) {
       return '<div class="group-title" id="set-' + g + '"' + (BOT_COLOR[g] ? ' style="color:' + BOT_COLOR[g] + '"' : "") + ">" + cap(g) + '</div><div class="group">' + groups[g].map(function (k) { return settingCell(k, a.settings[k], a.ranges[k]); }).join("") + "</div>";
     }).join("");
     el.innerHTML =
@@ -487,7 +559,7 @@
       '<div class="group-title">FOMO</div><div class="group">' +
       (a.fomoHandle ? '<a class="cell tap" href="' + esc(Links.profileUrl(a.fomoHandle)) + '" target="_blank" rel="noopener"><span class="grow" style="color:#fff">Your FOMO profile</span><span class="val">@' + esc(String(a.fomoHandle).replace(/^@/, "")) + " ›</span></a>" : '<div class="cell"><span class="grow">Your FOMO profile</span><span class="val">Not set</span></div>') +
       '<button class="cell tap" id="invite"><span class="grow">Invite a friend</span><span class="val">›</span></button></div>' +
-      '<div class="group-title">Copy picks</div><div class="group"><div class="cell col"><div class="seg"><button disabled>Off</button><button disabled>24h</button><button disabled>12h</button><button disabled>6h</button></div><div class="note">Scheduled by Grok Bot. Change it in the chat for now.</div></div></div>' +
+      copyPicksHtml(a.copyPicks || S.copyPicks, a) +
       '<div class="group-title">Pushes</div><div class="group"><div class="cell"><span class="grow">Telegram</span><span class="val">' + (a.telegram ? "Connected" : "Not connected") + '</span></div>' +
       '<div class="cell"><span class="grow">Web push</span><span class="val">' + (push.webpush ? "Connected (" + push.subs + ")" : "Not connected") + "</span></div>" +
       (push.note ? '<div class="cell"><span class="grow muted" style="font-size:15px">Plan B: ' + esc(push.note) + "</span></div>" : "") +
@@ -495,7 +567,14 @@
       '<button class="cell tap" id="test-push" style="color:var(--blue)">Send test push</button>' +
       '<button class="cell tap" id="watch" style="color:var(--blue)">Watch in Grok Bot</button></div>' +
       setHtml + connectionGroup();
-    bindConnection(); bindInvite();
+    bindConnection(); bindInvite(); bindCopyPicks(el);
+    if (!a.copyPicks && !S.copyPicks) {
+      fetch("copy_picks_data.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (cp) {
+        if (cp && cp.settings) S.copyPicksSettings = cp.settings;
+        if (cp && cp.entries) { S.copyPicks = cp; renderAccount(); }
+        else if (cp && cp.settings) { renderAccount(); }
+      }).catch(function () {});
+    }
     $$("#mode-seg button").forEach(function (b) { b.onclick = function () { setMode(b.dataset.m); }; });
     $$("[data-k]", el).forEach(function (inp) {
       var ev = inp.type === "range" ? "input" : "change";

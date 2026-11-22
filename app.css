@@ -227,3 +227,13 @@ input[type=range] { width: 100%; accent-color: var(--green); min-height: 44px; }
 .set-top .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .set-top input[type=number] { width: 96px; text-align: right; padding: 6px 8px; min-height: 36px; }
 .note { color: var(--sec); font-size: 13px; padding: 6px 4px 0; }
+
+
+/* Copy picks (Account tab, STEP 3) */
+.cp-card { background: #1c1c1e; border-radius: 14px; padding: 14px; margin: 10px 0; }
+.cp-card .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 4px 0; }
+.cp-card .g { color: #30d158; font-variant-numeric: tabular-nums; }
+.cp-card .btn { margin-left: auto; background: #2c2c2e; color: #fff; padding: 4px 12px; border-radius: 8px; text-decoration: none; font-size: 15px; }
+.cp-card .buy { color: #0a84ff; display: block; margin: 6px 0; text-decoration: none; }
+.cp-card .sw { color: #aaa; display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 15px; }
+.cp-past { color: #aaa; margin: 4px 0; font-size: 15px; }
