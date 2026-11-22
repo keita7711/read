@@ -627,6 +627,7 @@
 
 
   /* ---------- Market & Journal (read-only snapshot files: market.json, journal.json) ---------- */
+  function big(n) { if (n == null || !isFinite(n)) return DASH; return n >= 1e12 ? "$" + (n / 1e12).toFixed(2) + "T" : n >= 1e9 ? "$" + (n / 1e9).toFixed(1) + "B" : compact(n); }
   function cls(n) { return n == null || !isFinite(n) ? "" : n >= 0 ? "green" : "red"; }
   function num(n, d) { return n == null || !isFinite(n) ? DASH : Number(n).toFixed(d == null ? 2 : d); }
   function ext(u, label) { return u && /^https:\/\/fomo\.family\//.test(u) ? '<a class="fomo" href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(label || "FOMO") + "</a>" : ""; }
@@ -644,7 +645,7 @@
     h.push('<div class="card">' + stamp(m.fetchedTs, "Updated " + (m.fetchedAt || DASH)) + '<div class="row-sub">' + esc((m.sources || []).join(" · ")) + "</div></div>");
     var g = m.global;
     h.push('<div class="section-head"><h2>Crypto market</h2></div><div class="list">');
-    if (g) h.push('<div class="row"><div class="row-main"><div class="row-title">Total mcap ' + compact(g.mcapUsd) + '</div><div class="row-sub">24h vol ' + compact(g.volUsd) + " · BTC dom " + num(g.btcDom, 1) + '%</div></div><div class="row-val ' + cls(g.mcapChg24h) + '">' + pct(g.mcapChg24h) + "</div></div>");
+    if (g) h.push('<div class="row"><div class="row-main"><div class="row-title">Total mcap ' + big(g.mcapUsd) + '</div><div class="row-sub">24h vol ' + big(g.volUsd) + " · BTC dom " + num(g.btcDom, 1) + '%</div></div><div class="row-val ' + cls(g.mcapChg24h) + '">' + pct(g.mcapChg24h) + "</div></div>");
     (m.majors || []).forEach(function (x) {
       h.push('<div class="row"><div class="row-main"><div class="row-title">' + esc(x.symbol) + " " + price(x.price) + '</div><div class="row-sub">' + taLine(x.ta) + ' (1h)</div></div><div class="row-val ' + cls(x.chg24h) + '">' + pct(x.chg24h) + "</div></div>");
     });

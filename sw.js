@@ -1,5 +1,5 @@
 /* FOMO desk service worker: app-shell cache (never caches /api or data), web push display. */
-var CACHE = "desk-shell-v12";
+var CACHE = "desk-shell-v13";
 var SHELL = ["./", "index.html", "app.css", "app.js", "chart.js", "links.js", "manifest.json", "apple-touch-icon.png"];
 self.addEventListener("install", function (e) { e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).catch(function () {})); self.skipWaiting(); });
 self.addEventListener("activate", function (e) {
