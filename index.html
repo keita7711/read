@@ -12,7 +12,7 @@
   <title>FOMO desk</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="app.css?v=design2">
 </head>
 <body>
   <header class="navbar" id="navbar">
@@ -39,7 +39,7 @@
         </div>
       </div>
       <div class="chart-wrap" id="chart-wrap">
-        <canvas id="main-chart" aria-label="Balance chart"></canvas>
+        <div id="eq-chart" aria-label="Balance chart"></div><div id="chart-marks"></div>
         <div class="chart-empty hidden" id="chart-empty">Waiting for the first trade</div>
         <div class="sk sk-chart" id="chart-sk"></div>
       </div>
@@ -47,6 +47,14 @@
         <button class="tap on" data-range="LIVE">LIVE</button><button class="tap" data-range="1H">1H</button><button class="tap" data-range="4H">4H</button><button class="tap" data-range="1D">1D</button><button class="tap" data-range="1W">1W</button><button class="tap" data-range="ALL">ALL</button>
       </div>
 
+      <div class="section-head"><h2 id="bots-head">Agents</h2><span class="muted num" id="agents-running"></span></div>
+      <div class="carousel" id="bot-carousel"></div>
+      <div class="cdots" id="carousel-dots"></div>
+
+      <div class="section-head"><h2>Activity</h2><button class="link tap" id="see-all">See all</button></div>
+      <div class="list" id="home-activity"></div>
+
+      <div class="section-head"><h2>Bot's computer</h2></div>
       <div class="screen-card tap" id="screen-card">
         <div class="screen-frame" id="screen-frame">
           <img class="buf" id="screen-a" alt=""><img class="buf" id="screen-b" alt="">
@@ -57,51 +65,49 @@
         <div class="screen-order" id="screen-order"><span class="muted">No orders yet</span></div>
       </div>
 
-      <div class="section-head"><h2 id="bots-head">Bots</h2></div>
-      <div class="carousel" id="bot-carousel"></div>
-
-      <div class="section-head"><h2>Activity</h2><button class="link tap" id="see-all">See all</button></div>
-      <div class="list" id="home-activity"></div>
     </section>
 
     <!-- BOTS -->
     <section class="view hidden" id="view-bots" data-tab="bots">
-      <h1 class="large-title">Bots</h1>
+      <h1 class="large-title">Agents</h1>
+      <div class="msg-list" id="msg-list"></div>
+      <div id="whale"></div>
+      <div class="section-head"><h2>Bots · details &amp; controls</h2></div>
       <div id="bots-list"></div>
     </section>
 
     <!-- ACTIVITY -->
     <section class="view hidden" id="view-activity" data-tab="activity">
       <h1 class="large-title">Activity</h1>
+      <div class="chips"><button class="chip" data-go="market">Market</button><button class="chip" data-go="journal">Journal</button></div>
       <div class="list" id="activity-list"></div>
       <button class="more tap hidden" id="activity-more">Load more</button>
     </section>
 
     <!-- MARKET (read-only: CoinGecko/GeckoTerminal + TA) -->
     <section class="view hidden" id="view-market" data-tab="market">
-      <h1 class="large-title">Market</h1>
+      <button class="back tap" data-go="activity">‹ Activity</button><h1 class="large-title">Market</h1>
       <div id="market-body"><div class="card muted">Loading…</div></div>
     </section>
 
     <!-- JOURNAL (read-only: closed trades from desk.db) -->
     <section class="view hidden" id="view-journal" data-tab="journal">
-      <h1 class="large-title">Journal</h1>
+      <button class="back tap" data-go="activity">‹ Activity</button><h1 class="large-title">Journal</h1>
       <div id="journal-body"><div class="card muted">Loading…</div></div>
     </section>
 
     <!-- ACCOUNT -->
     <section class="view hidden" id="view-account" data-tab="account">
       <h1 class="large-title">Account</h1>
+      <div class="chips"><button class="chip" data-go="market">Market</button><button class="chip" data-go="journal">Journal</button></div>
       <div id="account-body"></div>
     </section>
   </main>
 
   <nav class="tabbar" id="tabbar">
     <button class="tab tap on" data-tab="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
-    <button class="tab tap" data-tab="bots"><svg viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg><span>Bots</span></button>
+    <button class="tab tap" data-tab="bots"><svg viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg><span>Agents</span></button>
     <button class="tab tap" data-tab="activity"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span>Activity</span></button>
-    <button class="tab tap" data-tab="market"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Market</span></button>
-    <button class="tab tap" data-tab="journal"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Journal</span></button>
     <button class="tab tap" data-tab="account"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Account</span></button>
   </nav>
 
@@ -112,6 +118,6 @@
 
   <script src="links.js"></script>
   <script src="chart.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=design2"></script>
 </body>
 </html>

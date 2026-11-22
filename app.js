@@ -1,11 +1,11 @@
-/* FOMO desk app · STEP 10. Plain JS. Never shows a made-up number: missing = "—". No secrets live in this file. */
+/* FOMO desk app · STEP 10 · design v2 (desk-design-v2).  Plain JS. Never shows a made-up number: missing = "—". No secrets live in this file. */
 (function () {
   "use strict";
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   var BOTS = ["scanner", "analyst", "brain", "executor", "risk"];
-  var BOT_COLOR = { scanner: "#64d2ff", analyst: "#ffd60a", brain: "#bf5af2", executor: "#00d35a", risk: "#ff6b9a" };
+  var BOT_COLOR = { scanner: "#30d5c8", analyst: "#8e8e93", brain: "#ff453a", executor: "#bf5af2", risk: "#ff9f0a", copy_picks: "#64d2ff" };
   var cap = function (s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ""; };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
 
@@ -64,7 +64,9 @@
     coin: function (m) { return planB() ? snap("coin/" + encodeURIComponent(m) + ".json") : req("/coin/" + encodeURIComponent(m)); },
     audit: function (m) { return req("/audit/" + encodeURIComponent(m)); },
     decisions: function (n) { return req("/bots/" + n + "/decisions"); },
-    account: function () { return req("/account"); }
+    account: function () { return req("/account"); },
+    agents: function () { return snap("agents.json"); },
+    charts: function () { return snap("charts.json"); }
   };
 
   /* ---------- formatting (only real values; null -> "—") ---------- */
@@ -135,6 +137,7 @@
         S.state = res[0]; S.chart = res[1]; S.activity = res[2]; S.orders = res[3];
         S.lastOk = Date.now(); S.fails = 0; $("#error-row").classList.add("hidden");
         learnSymbols(); render();
+        Promise.all([get.agents().catch(function () { return S.agents; }), get.charts().catch(function () { return S.charts; })]).then(function (r) { S.agents = r[0] || null; S.charts = r[1] || null; if (S.state) render(); });
         S.timer = setTimeout(refresh, planB() ? 15000 : 5000);
       })
       .catch(function () {
@@ -170,12 +173,9 @@
     var live = st.mode === "LIVE";
     $("#paper-badge").classList.toggle("hidden", live);
     odometer($("#balance"), usd(st.balance)); $("#balance").setAttribute("aria-label", usd(st.balance));
-    var tp = $("#today-pct");
-    tp.innerHTML = st.todayPct == null ? '<span class="muted">' + DASH + " today</span>" : esc(pct(st.todayPct)) + ' <span class="muted">today</span>';
-    tp.className = "today num " + (st.todayPct == null ? "" : st.todayPct >= 0 ? "green" : "red");
     var mp = $("#mult-pill");
-    if (st.multiplier != null) { mp.textContent = Number(st.multiplier).toFixed(2) + "×"; mp.classList.remove("hidden"); } else mp.classList.add("hidden");
-    renderChart(); renderScreenMeta(); renderCarousel(); renderHomeActivity(); renderBotsTab(); renderActivityTab();
+    if (st.multiplier != null) { mp.textContent = Number(st.multiplier).toFixed(2) + "x"; mp.classList.remove("hidden"); } else mp.classList.add("hidden");
+    renderChart(); renderScreenMeta(); renderCarousel(); renderHomeActivity(); renderBotsTab(); renderActivityTab(); renderDesign();
     if (S.tab === "account") loadAccount();
     var seen = +localStorage.getItem("desk.seen") || 0, top = ((S.activity && S.activity.rows) || [])[0];
     $("#bell-dot").classList.toggle("hidden", !(top && top.id > seen));
@@ -185,20 +185,6 @@
     var st = S.state; if (!st || st.multiplier == null || !st.multiplier) return null;
     return st.balance / st.multiplier;
   }
-  function renderChart() {
-    var c = S.chart, pts = (c && c.points) || [];
-    $("#chart-sk").classList.add("hidden");
-    $("#chart-empty").classList.toggle("hidden", pts.length > 0);
-    var cv = $("#main-chart");
-    if (!pts.length) { var x = cv.getContext("2d"); x.clearRect(0, 0, cv.width, cv.height); return; }
-    Charts.lineAnimated(cv, { points: pts, marks: (c.marks || []).map(markLabel), start: S.range === "LIVE" ? nightStartValue() : null, t0: S.range === "LIVE" ? S.state.nightStart : null });
-  }
-  function markLabel(m) {
-    var label = m.label;
-    if (m.kind === "bought" && !/^Bought/.test(label)) label = "Bought " + label;
-    return { ts: m.ts, label: label, color: m.color };
-  }
-
   /* LIVE SCREEN: double-buffered, 1s (plan B 15s) */
   var scr = { front: "a", lastFrame: 0, busy: false };
   function screenTick() {
@@ -275,14 +261,6 @@
     return '<span class="bdot ' + b.status + '"></span><span class="bot-name" style="color:' + b.color + '">' + cap(b.name) + '</span><span class="bot-label">' + esc(b.label || "") + "</span>";
   }
   function paintRings(root) { $$(".ring canvas", root).forEach(function (c) { Charts.ring(c, c.dataset.score === "" ? null : +c.dataset.score); }); }
-  function renderCarousel() {
-    var bots = S.state.bots || [], running = bots.filter(function (b) { return b.status === "running"; }).length;
-    $("#bots-head").textContent = "Bots · " + running + " running";
-    var el = $("#bot-carousel");
-    el.innerHTML = bots.map(function (b) { return '<button class="bot-card" data-bot="' + b.name + '"><div class="bot-head">' + botHead(b) + '</div><div class="bot-body">' + botBody(b) + "</div></button>"; }).join("");
-    paintRings(el);
-  }
-
   /* ACTIVITY rows */
   function actRow(r) {
     var bot = cap(r.bot || (r.kind === "rejected" ? "analyst" : r.kind === "stopped" ? "risk" : "executor"));
@@ -293,19 +271,8 @@
     var link = r.mint ? '<a class="fomo" href="' + esc(Links.coinUrl(r.mint)) + '" target="_blank" rel="noopener">Open on FOMO</a>' : "";
     return '<div class="row tap" role="button" data-mint="' + esc(r.mint || "") + '" data-kind="' + r.kind + '"><div class="row-main"><div class="row-title">' + esc(title) + '</div><div class="row-sub">' + esc(sub) + '</div></div><div class="row-val"><span class="' + cls + '">' + esc(val) + "</span>" + link + "</div></div>";
   }
-  function renderHomeActivity() {
-    var rows = ((S.activity && S.activity.rows) || []).slice(0, 5), el = $("#home-activity");
-    el.style.background = "";
-    el.outerHTML = rows.length ? '<div class="list" id="home-activity">' + rows.map(actRow).join("") + "</div>" : '<div class="list" id="home-activity" style="background:none"><div class="empty">Waiting for the first trade</div></div>';
-  }
-  function renderActivityTab() {
-    var rows = (S.activity && S.activity.rows) || [], el = $("#activity-list");
-    el.style.background = rows.length ? "" : "none";
-    el.innerHTML = rows.length ? rows.map(actRow).join("") : '<div class="empty">Nothing yet tonight</div>';
-    $("#activity-more").classList.toggle("hidden", !(S.activity && S.activity.next) || planB());
-  }
-
   /* BOTS TAB */
+  function dispName(nm) { return { analyst: "Auditor", brain: "Analyst · sizing" }[nm] || cap(nm); }
   function decText(d) {
     if (d.bot === "scanner") return (d.verdict === "pass" ? "Passed → Analyst" : "Killed · " + (d.reason || d.verdict));
     if (d.bot === "analyst") return "Score " + (d.score == null ? DASH : Math.round(d.score)) + " · " + (d["pass"] ? "taken" : (d.reason || "rejected"));
@@ -323,7 +290,7 @@
       else decHtml = decs.slice(0, 20).map(function (d) {
         return '<div class="dec"><span class="t">' + hm(d.ts) + '</span><span class="d">' + esc((d.mint ? symOf(d.mint) + " · " : "") + decText(d)) + "</span>" + (d.mint ? '<a href="' + esc(Links.coinUrl(d.mint)) + '" target="_blank" rel="noopener">FOMO</a>' : "") + "</div>";
       }).join("");
-      return '<div class="bot-full" id="bot-' + b.name + '"><div class="bot-head"><span class="bdot ' + b.status + '"></span><span class="bot-name" style="color:' + b.color + '">' + cap(b.name) + '</span><span class="count">' + esc(b.label || "") + '</span><label class="switch" title="' + (locked ? "Locked while a position is open" : "Pause") + '"><input type="checkbox" data-pause="' + b.name + '"' + (b.paused ? "" : " checked") + (locked || planB() ? " disabled" : "") + '><span></span></label></div>' +
+      return '<div class="bot-full" id="bot-' + b.name + '"><div class="bot-head"><span class="bdot ' + b.status + '"></span><span class="bot-name" style="color:' + (BOT_COLOR[b.name] || b.color) + '">' + dispName(b.name) + '</span><span class="count">' + esc(b.label || "") + '</span><label class="switch" title="' + (locked ? "Locked while a position is open" : "Pause") + '"><input type="checkbox" data-pause="' + b.name + '"' + (b.paused ? "" : " checked") + (locked || planB() ? " disabled" : "") + '><span></span></label></div>' +
         (locked ? '<div class="note">Locked while a position is open</div>' : "") +
         '<div class="bot-body">' + botBody(b) + '</div><div class="decisions">' + decHtml + '</div><button class="link tap" data-settings="' + b.name + '">Settings</button></div>';
     }).join("");
@@ -711,6 +678,228 @@
     $("#journal-body").innerHTML = h.join("");
   }
 
+  /* ---------- DESIGN v2 (redesign 2026-11-22): mascots, SVG equity chart, agent cards, messages, whale tracker, confetti.
+     Every number comes from state.json / charts.json / agents.json / activity.json. Missing = "—". ---------- */
+  var MASCOT = { grok: "#f2f2f7", risk: "#ff9f0a", executor: "#bf5af2", analyst: "#ff453a", auditor: "#8e8e93", scanner: "#30d5c8" };
+  var AGENT_NAMES = { grok: "Grok Bot", risk: "Risk", executor: "Executor", analyst: "Analyst", auditor: "Auditor", scanner: "Scanner" };
+  var AGENT_SRC = { scanner: "scanner", auditor: "analyst", analyst: "brain", executor: "executor", risk: "risk" };
+  function mascot(bot, size) {
+    var c = MASCOT[bot] || "#8e8e93", s = size || 32, eye = bot === "grok" ? "#000" : "#111";
+    var extra = {
+      grok: '<path d="M10 7 L16 3 L22 7" stroke="' + c + '" stroke-width="2" fill="none" stroke-linecap="round"/>',
+      risk: '<path d="M16 2 L20 8 H12 Z" fill="' + c + '"/>',
+      executor: '<circle cx="16" cy="4" r="2.6" fill="' + c + '"/><path d="M16 6.5 V9" stroke="' + c + '" stroke-width="2"/>',
+      analyst: '<rect x="9" y="5" width="14" height="3" rx="1.5" fill="' + c + '"/>',
+      auditor: '<circle cx="25" cy="21" r="4" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M28 24 L30 26" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>',
+      scanner: '<path d="M8 6 Q16 0 24 6" stroke="' + c + '" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M11 8 Q16 4.5 21 8" stroke="' + c + '" stroke-width="2" fill="none" stroke-linecap="round"/>'
+    }[bot] || "";
+    return '<svg class="mascot" width="' + s + '" height="' + s + '" viewBox="0 0 32 32" aria-hidden="true">' + extra +
+      '<rect x="5" y="9" width="22" height="19" rx="8" fill="' + c + '"/>' +
+      '<ellipse cx="12.5" cy="18" rx="2.4" ry="3" fill="' + eye + '"/><ellipse cx="19.5" cy="18" rx="2.4" ry="3" fill="' + eye + '"/>' +
+      '<circle cx="13.2" cy="16.9" r="0.8" fill="#fff"/><circle cx="20.2" cy="16.9" r="0.8" fill="#fff"/>' +
+      '<path d="M13 23.5 Q16 25.5 19 23.5" stroke="' + eye + '" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>';
+  }
+  function coinAvatar(sym, mint, size) {
+    var s = size || 20, label = (sym || (mint || "?")).replace(/^\$/, "").slice(0, 1).toUpperCase(), h = 0, k = mint || sym || "";
+    for (var i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) % 360;
+    return '<span class="coin-av" style="width:' + s + "px;height:" + s + "px;font-size:" + Math.round(s * 0.5) + "px;background:hsl(" + h + ',60%,45%)">' + esc(label) + "</span>";
+  }
+  function agSym(m) { var A = S.agents || {}; return (m && ((A.symbols || {})[m] || S.sym[m])) || short(m); }
+  function hbRunning(src) { var h = ((S.agents || {}).heartbeats || {})[src]; if (h) return !!h.running; var b = ((S.state || {}).bots || []).filter(function (x) { return x.name === src; })[0]; return b ? b.status === "running" : null; }
+  function sinceTxt(ts) { if (!ts) return DASH; var s = Date.now() / 1000 - ts; if (s < 60) return "now"; if (s < 3600) return Math.round(s / 60) + "m"; if (s < 86400) return Math.round(s / 3600) + "h"; return Math.round(s / 86400) + "d"; }
+  function money(n) { if (n == null || !isFinite(n)) return DASH; return (n >= 0 ? "+" : "-") + "$" + Math.abs(n).toFixed(2); }
+
+  /* balance change line: $ and % vs this session's start cash (nights.start_cash) */
+  function renderChange() {
+    var st = S.state || {}, cur = (((S.agents || {}).session || {}).current) || null;
+    var start = cur && cur.start_cash != null ? cur.start_cash : null;
+    var d = st.balance != null && start != null ? st.balance - start : null;
+    var p = st.todayPct != null ? st.todayPct : (d != null && start ? 100 * d / start : null);
+    var tp = $("#today-pct");
+    if (d == null && p == null) { tp.innerHTML = '<span class="muted">' + DASH + " this session</span>"; tp.className = "today num"; return; }
+    var up = (d != null ? d : p) >= 0;
+    tp.innerHTML = (up ? "▲ " : "▼ ") + esc(money(d)) + " (" + esc(pct(p)) + ') <span class="muted">this session</span>';
+    tp.className = "today num " + (up ? "green" : "red");
+  }
+
+  /* SVG equity chart: green gradient, dots, floating trade-PnL markers with coin avatars */
+  function chartFor(rg) {
+    var C = S.charts && S.charts.ranges && S.charts.ranges[rg];
+    return C || (rg === S.range ? S.chart : null);
+  }
+  function renderChart() {
+    var c = chartFor(S.range) || S.chart, el = $("#eq-chart"); if (!el) return;
+    $("#chart-sk").classList.add("hidden");
+    var pts = ((c && c.points) || []).filter(function (p) { return p && p.value != null && isFinite(p.value); });
+    var cur = ((S.agents || {}).session || {}).current, st0 = S.state || {};
+    if (S.range === "LIVE" && !pts.length && cur && cur.start_cash != null && st0.balance != null) /* real: session start cash (nights) + current balance */
+      pts = [{ ts: cur.started_at, value: cur.start_cash }, { ts: st0.updatedAt || Math.floor(Date.now() / 1000), value: st0.balance }];
+    $("#chart-empty").classList.toggle("hidden", pts.length > 0);
+    if (!pts.length) { el.innerHTML = ""; $("#chart-marks").innerHTML = ""; return; }
+    var W = el.clientWidth || 360, H = el.clientHeight || 210, pl = 6, pr = 6, pt = 34, pb = 14;
+    var t0 = pts[0].ts, t1 = pts[pts.length - 1].ts, lo = Infinity, hi = -Infinity;
+    if (S.range === "LIVE" && S.state && S.state.nightStart) t0 = Math.min(t0, S.state.nightStart);
+    if (t1 <= t0) { t1 = t0 + 1; }
+    pts.forEach(function (p) { lo = Math.min(lo, p.value); hi = Math.max(hi, p.value); });
+    if (hi - lo < 1e-9) { lo -= 1; hi += 1; } else { var pad = (hi - lo) * 0.12; lo -= pad; hi += pad; }
+    var X = function (t) { return pts.length === 1 ? W / 2 : pl + (W - pl - pr) * (t - t0) / (t1 - t0); };
+    var Y = function (v) { return pt + (H - pt - pb) * (1 - (v - lo) / (hi - lo)); };
+    var line = pts.map(function (p, i) { return (i ? "L" : "M") + X(p.ts).toFixed(1) + " " + Y(p.value).toFixed(1); }).join(" ");
+    if (pts.length === 1) line = "M" + pl + " " + Y(pts[0].value).toFixed(1) + " L" + (W - pr) + " " + Y(pts[0].value).toFixed(1);
+    var first = pts.length === 1 ? pl : X(pts[0].ts), last = pts.length === 1 ? W - pr : X(pts[pts.length - 1].ts);
+    var area = line + " L" + last.toFixed(1) + " " + H + " L" + first.toFixed(1) + " " + H + " Z";
+    var up = pts[pts.length - 1].value >= pts[0].value, col = up ? "var(--green)" : "var(--red)";
+    var dots = pts.map(function (p) { return '<circle cx="' + (pts.length === 1 ? W / 2 : X(p.ts)).toFixed(1) + '" cy="' + Y(p.value).toFixed(1) + '" r="3" fill="' + col + '" stroke="#000" stroke-width="1.5"/>'; }).join("");
+    el.innerHTML = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '"><defs><linearGradient id="eqg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + (up ? "#00d35a" : "#ff453a") + '" stop-opacity="0.38"/><stop offset="1" stop-color="' + (up ? "#00d35a" : "#ff453a") + '" stop-opacity="0"/></linearGradient></defs>' +
+      '<path d="' + area + '" fill="url(#eqg)"/><path class="eq-line" d="' + line + '" fill="none" stroke="' + col + '" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>' + dots + "</svg>";
+    /* markers: real closed trades (agents.closedTrades) inside the range window */
+    var trades = ((S.agents || {}).closedTrades || []).filter(function (t) { return t.ts >= t0 - 60 && t.ts <= Math.max(t1, Date.now() / 1000); }).slice(0, 4);
+    var valAt = function (ts) { var best = pts[0]; pts.forEach(function (p) { if (Math.abs(p.ts - ts) < Math.abs(best.ts - ts)) best = p; }); return best.value; };
+    $("#chart-marks").innerHTML = trades.map(function (t, i) {
+      var x = Math.max(4, Math.min(W - 110, (pts.length === 1 ? W / 2 : X(Math.min(Math.max(t.ts, t0), t1))) - 40)), y = Math.max(0, Y(valAt(t.ts)) - 34 - (i % 2) * 18);
+      return '<a class="pnl-mark ' + (t.pnl >= 0 ? "up" : "down") + '" href="' + esc(t.link) + '" target="_blank" rel="noopener" style="left:' + x + "px;top:" + y + 'px">' + coinAvatar(agSym(t.mint), t.mint, 18) + "<b>" + esc(money(t.pnl)) + "</b></a>";
+    }).join("");
+  }
+
+  /* AGENTS carousel (5 cards, scroll-snap, page dots) */
+  function cardWrap(key, label, body) {
+    var run = hbRunning(AGENT_SRC[key]);
+    return '<button class="ag-card" data-agent="' + key + '"><div class="ag-head">' + mascot(key, 30) + '<div class="ag-name">' + AGENT_NAMES[key] + '<span class="ag-state ' + (run ? "on" : run === false ? "off" : "") + '">' + (run ? "running" : run === false ? "offline" : DASH) + '</span></div><span class="ag-label num">' + esc(label) + '</span></div><div class="ag-body">' + body + "</div></button>";
+  }
+  function nv(v) { return v == null ? DASH : String(v); }
+  function agentCards() {
+    var A = S.agents || {}, st = S.state || {}, bots = {}; (st.bots || []).forEach(function (b) { bots[b.name] = b; });
+    var sc = A.scanner || {}, au = A.auditor || {}, an = A.analyst || {}, ex = A.executor || {}, rk = A.risk || {};
+    var cards = [];
+    /* Scanner */
+    var rec = (sc.recent || []).slice(0, 4);
+    cards.push(cardWrap("scanner", nv(sc.poolsSession) + " pools",
+      '<div class="ag-kv"><span>Rejected</span><b class="num">' + nv(sc.killedSession) + '</b><span>Passed</span><b class="num">' + nv(sc.passedSession) + "</b></div>" +
+      (rec.length ? rec.map(function (r) { return '<div class="rej-row ' + (r.verdict === "pass" ? "pass" : "") + '">' + coinAvatar(agSym(r.mint), r.mint, 18) + '<s class="sym">' + esc(agSym(r.mint)) + '</s><span class="why">' + esc(r.verdict === "pass" ? "→ Auditor" : (r.reason || r.verdict)) + "</span></div>"; }).join("") : '<div class="muted sm">no data</div>')));
+    /* Auditor */
+    var L = (au.last && au.last.layers) || [], bars = "";
+    for (var i = 0; i < 7; i++) { var l = L[i]; bars += '<div class="chk"><span class="chk-bar ' + (l ? (l.pass ? "ok" : "bad") : "") + '"></span><span class="chk-n">' + esc(l ? l.name : "—") + "</span></div>"; }
+    cards.push(cardWrap("auditor", nv(au.takenApartSession) + " taken apart",
+      '<div class="chk-list">' + bars + '</div><div class="ag-kv"><span>Top 10 hold</span><b class="num">' + (au.last && au.last.top10Pct != null ? Math.round(au.last.top10Pct) + "%" : DASH) + '</b><span>Rejected</span><b class="num">' + nv(au.rejectedSession) + "</b></div>" +
+      '<div class="muted sm">Last: ' + (au.last ? esc(agSym(au.last.mint)) + " · " + hm(au.last.ts) : DASH) + " · all-time " + nv(au.takenApartAll) + "</div>"));
+    /* Analyst (score ring) + Brain sizing */
+    var last = an.last || {}, sz = bots.brain || {};
+    cards.push(cardWrap("analyst", nv(an.scoredSession) + " scored",
+      '<div class="an-row"><div class="ring"><canvas data-score="' + (last.score == null ? "" : last.score) + '"></canvas><b>' + (last.score == null ? DASH : Math.round(last.score)) + '</b></div><div class="an-txt"><div>' + (last.mint ? esc(agSym(last.mint)) : DASH) + '</div><div class="muted sm">' + esc(last.mint ? (last.pass ? "passed" : (last.reason || "rejected")) : "no score yet") + "</div></div></div>" +
+      '<div class="ag-kv"><span>Next size</span><b class="num">' + (sz.sizeUsd != null ? usd(sz.sizeUsd) : DASH) + '</b><span>Of cash</span><b class="num">' + (sz.pctOfCash != null ? Math.round(sz.pctOfCash) + "%" : DASH) + "</b></div>"));
+    /* Executor */
+    var o = ex.last;
+    cards.push(cardWrap("executor", nv(ex.ordersSession) + " orders",
+      (o ? '<div class="ex-last">' + coinAvatar(agSym(o.mint), o.mint, 22) + "<div><div>" + esc((o.side === "buy" ? "Bought " : "Sold ") + agSym(o.mint)) + '</div><div class="muted sm">' + esc((o.usd != null ? usd(o.usd) : DASH) + " · " + (o.reason || "") + " · " + o.status + " · " + hm(o.ts)) + "</div></div></div>" : '<div class="muted sm">no orders yet</div>') +
+      '<div class="bar' + (/Bought/.test((bots.executor || {}).bar || "") ? " green" : "") + '">' + esc((bots.executor || {}).bar || DASH) + "</div>"));
+    /* Risk */
+    var rb = bots.risk || {};
+    cards.push(cardWrap("risk", nv(rk.open != null ? rk.open : rb.open) + " open",
+      '<div class="pills">' + (rb.pills || []).map(function (p) { return '<span class="pill mono ' + esc(p.color) + '">' + esc(p.text) + "</span>"; }).join("") + "</div>" +
+      (st.positions || []).slice(0, 2).map(function (p) { return '<div class="ex-last">' + coinAvatar(agSym(p.mint), p.mint, 22) + "<div><div>" + esc(p.symbol || agSym(p.mint)) + (p.origin === "adopted" ? ' <span class="muted sm">watch-only</span>' : "") + '</div><div class="sm ' + (p.pnl_pct >= 0 ? "green" : "red") + '">' + esc(usd(p.value_usd) + " · " + pct(p.pnl_pct, 1)) + "</div></div></div>"; }).join("")));
+    return cards;
+  }
+  function renderCarousel() {
+    var cards = agentCards(), run = 0;
+    ["scanner", "auditor", "analyst", "executor", "risk"].forEach(function (k) { if (hbRunning(AGENT_SRC[k])) run++; });
+    $("#bots-head").textContent = "Agents"; $("#agents-running").textContent = run + " running";
+    var el = $("#bot-carousel"), keep = el.scrollLeft;
+    el.innerHTML = cards.join(""); el.scrollLeft = keep;
+    $("#carousel-dots").innerHTML = cards.map(function (_, i) { return '<span class="cdot' + (i === 0 ? " on" : "") + '"></span>'; }).join("");
+    paintRings(el); syncDots();
+  }
+  function syncDots() {
+    var el = $("#bot-carousel"), cs = el.children; if (!cs.length) return;
+    var w = cs[0].offsetWidth + 12, i = Math.round(el.scrollLeft / w);
+    $$("#carousel-dots .cdot").forEach(function (d, j) { d.classList.toggle("on", j === Math.min(i, cs.length - 1)); });
+  }
+
+  /* ACTIVITY: desk activity rows + real closed trades (Sold X · reason · time · +$ / %) */
+  function mergedActivity() {
+    var rows = ((S.activity && S.activity.rows) || []).map(function (r) { return { r: r, ts: r.ts }; });
+    ((S.agents || {}).closedTrades || []).forEach(function (t) {
+      var dup = rows.some(function (x) { return x.r.mint === t.mint && Math.abs(x.ts - t.ts) < 5 && /sold|stopped/.test(x.r.kind); });
+      if (!dup) rows.push({ t: t, ts: t.ts });
+    });
+    rows.sort(function (a, b) { return b.ts - a.ts; });
+    return rows;
+  }
+  function actRow2(x) {
+    if (x.t) {
+      var t = x.t, up = t.pnl >= 0;
+      return '<div class="row tap" role="button" data-mint="' + esc(t.mint) + '" data-kind="sold"><div class="row-av">' + coinAvatar(agSym(t.mint), t.mint, 34) + '</div><div class="row-main"><div class="row-title">Sold ' + esc(agSym(t.mint)) + '</div><div class="row-sub">' + esc((t.reason || "") + " · " + (t.mode || "") + " · " + hm(t.ts)) + '</div></div><div class="row-val"><span class="' + (up ? "green" : "red") + ' num">' + esc(money(t.pnl)) + '</span><span class="sm num ' + (up ? "green" : "red") + '">' + esc(pct(t.pct, 1)) + '</span><a class="fomo" href="' + esc(t.link) + '" target="_blank" rel="noopener">FOMO</a></div></div>';
+    }
+    var r = x.r, bot = r.bot === "analyst" ? "auditor" : r.bot === "brain" ? "analyst" : (MASCOT[r.bot] ? r.bot : null);
+    var title = r.title || (cap(r.kind) + " " + symOf(r.mint));
+    var sub = (r.subtitle || cap(r.bot || "")) + " · " + hm(r.ts);
+    var val = r.kind === "rejected" ? "Skipped" : (r.value || DASH);
+    var cls = r.kind === "sold" ? "green" : r.kind === "stopped" ? "red" : r.kind === "rejected" ? "muted" : "";
+    var link = r.link || (r.mint ? Links.coinUrl(r.mint) : "");
+    return '<div class="row tap" role="button" data-mint="' + esc(r.mint || "") + '" data-kind="' + esc(r.kind) + '"><div class="row-av">' + (r.mint ? coinAvatar(agSym(r.mint), r.mint, 34) : mascot(bot || "grok", 34)) + '</div><div class="row-main"><div class="row-title">' + esc(title) + '</div><div class="row-sub">' + esc(sub) + '</div></div><div class="row-val"><span class="' + cls + ' sm">' + esc(val) + "</span>" + (link ? '<a class="fomo" href="' + esc(link) + '" target="_blank" rel="noopener">FOMO</a>' : "") + "</div></div>";
+  }
+  function renderHomeActivity() {
+    var rows = mergedActivity().slice(0, 5), el = $("#home-activity");
+    el.outerHTML = rows.length ? '<div class="list" id="home-activity">' + rows.map(actRow2).join("") + "</div>" : '<div class="list" id="home-activity" style="background:none"><div class="empty">no data</div></div>';
+  }
+  function renderActivityTab() {
+    var rows = mergedActivity(), el = $("#activity-list");
+    el.style.background = rows.length ? "" : "none";
+    el.innerHTML = rows.length ? rows.map(actRow2).join("") : '<div class="empty">Nothing yet tonight</div>';
+    $("#activity-more").classList.toggle("hidden", !(S.activity && S.activity.next) || planB());
+  }
+
+  /* MESSAGES (Agents tab): last real line per bot, blue dot = newer than last time you opened it */
+  function botMessages() {
+    var A = S.agents || {}, g = (A.grok || {}).nightReport, cur = (A.session || {}).current, out = [];
+    var gtxt = g ? ("Night " + g.date + ": " + (g.empty ? "no trades" : (g.green + " green · " + g.red + " red · " + g.flat + " flat")) + (g.feesPaid != null ? " · fees " + usd(g.feesPaid) : "")) : null;
+    if (cur) gtxt = (gtxt ? gtxt + " · " : "") + cur.mode + " session open since " + hm(cur.started_at);
+    out.push({ bot: "grok", text: gtxt, ts: cur ? cur.started_at : (g && g.window ? g.window.ended_at : null) });
+    var pick = function (bot, o) { var l = (o || {}).lastLog; out.push({ bot: bot, text: l ? l.text : null, ts: l ? l.ts : null }); };
+    pick("risk", A.risk); pick("executor", A.executor); pick("analyst", A.analyst); pick("auditor", A.auditor); pick("scanner", A.scanner);
+    return out;
+  }
+  function seenMap() { try { return JSON.parse(localStorage.getItem("desk.msgSeen") || "{}"); } catch (e) { return {}; } }
+  function renderMessages() {
+    var seen = seenMap(), el = $("#msg-list"); if (!el) return;
+    el.innerHTML = botMessages().map(function (m) {
+      var unread = m.ts && m.ts > (seen[m.bot] || 0);
+      return '<button class="msg-row" data-msg="' + m.bot + '"><span class="msg-av">' + mascot(m.bot, 40) + '</span><span class="msg-main"><span class="msg-top"><b style="color:' + (m.bot === "grok" ? "#fff" : MASCOT[m.bot]) + '">' + AGENT_NAMES[m.bot] + '</b><span class="msg-time">' + (m.ts ? hm(m.ts) : "") + '</span></span><span class="msg-text">' + esc(m.text || "no data") + "</span></span>" + (unread ? '<span class="udot"></span>' : '<span class="udot off"></span>') + "</button>";
+    }).join("");
+  }
+
+  /* WHALE TRACKER (copy desk, read-only) */
+  function renderWhale() {
+    var el = $("#whale"); if (!el) return;
+    var W = (S.agents || {}).copyDesk;
+    if (!W) { el.innerHTML = '<div class="wh-card"><div class="wh-title">🐋 Whale Tracker</div><div class="muted">no data</div></div>'; return; }
+    el.innerHTML = '<div class="wh-card"><div class="wh-top"><div class="wh-title">🐋 Whale Tracker</div><span class="pill ' + (W.mode === "LIVE" ? "mult" : "paper") + '">' + esc(W.mode || DASH) + '</span></div>' +
+      '<div class="wh-grid"><div><span>Accounts</span><b class="num">' + nv(W.accountsCount) + " / " + nv(W.maxAccounts) + '</b></div><div><span>Networks</span><b>' + esc((W.networks || []).join(", ") || DASH) + '</b></div><div><span>Min trade</span><b class="num">' + (W.minTradeUsd != null ? usd(W.minTradeUsd) : DASH) + '</b></div><div><span>Alerts</span><b>' + esc(W.alerts || DASH) + "</b></div></div>" +
+      '<div class="wh-status"><span class="sdot ' + (W.running ? "green" : "grey") + '"></span>' + (W.running ? "Running" : "Offline") + " · open copies " + nv(W.openCopies) + " · heartbeat " + (W.heartbeatTs ? hm(W.heartbeatTs) : DASH) + "</div>" +
+      '<div class="wh-btns">' + [["accounts", "Accounts"], ["filters", "Filters"], ["recent", "Recent Trades"], ["status", "Status"], ["alerts", "Pause Alerts"], ["language", "Language"]].map(function (b) { return '<button class="wh-btn" data-whale="' + b[0] + '">' + b[1] + "</button>"; }).join("") + "</div></div>";
+  }
+  function openWhale(kind) {
+    var W = (S.agents || {}).copyDesk || {}, h = "";
+    if (kind === "accounts") h = (W.accounts || []).length ? '<div class="list">' + W.accounts.map(function (a) { return '<div class="row"><div class="row-main"><div class="row-title">@' + esc(a.handle) + '</div><div class="row-sub">swaps seen ' + nv(a.swapsSeen) + '</div></div><div class="row-val"><a class="fomo" href="' + esc(a.profile) + '" target="_blank" rel="noopener">Profile</a></div></div>'; }).join("") + "</div>" : '<div class="empty">no data</div>';
+    else if (kind === "filters") h = '<div class="card"><div class="ag-kv col"><span>Min trade</span><b>' + (W.minTradeUsd != null ? usd(W.minTradeUsd) : DASH) + '</b><span class="sm muted">' + esc(W.minTradeNote || "") + '</span><span>Copy delay</span><b>' + nv(W.delayS) + 's</b><span>Own stop</span><b>' + nv(W.stopPct) + '%</b><span>Poll</span><b>every ' + nv(W.pollS) + 's</b><span>Networks</span><b>' + esc((W.networks || []).join(", ") || DASH) + "</b></div></div>";
+    else if (kind === "recent") h = (W.recent || []).length ? '<div class="list">' + W.recent.map(function (r) { return '<div class="row"><div class="row-main"><div class="row-title sm">' + esc(r.text) + '</div><div class="row-sub">' + esc(r.time) + "</div></div>" + (r.link ? '<div class="row-val"><a class="fomo" href="' + esc(r.link) + '" target="_blank" rel="noopener">FOMO</a></div>' : "") + "</div>"; }).join("") + "</div>" : '<div class="empty">no data</div>';
+    else if (kind === "status") h = '<div class="card"><div class="ag-kv col"><span>Process</span><b>' + (W.running ? "running" : "offline") + '</b><span>Mode</span><b>' + esc(W.mode || DASH) + '</b><span>Open copies</span><b>' + nv(W.openCopies) + '</b><span>Heartbeat</span><b>' + (W.heartbeatTs ? hm(W.heartbeatTs) : DASH) + "</b></div></div>";
+    else if (kind === "alerts") h = '<div class="card">Alerts: <b>' + esc(W.alerts || DASH) + '</b><div class="muted sm" style="margin-top:8px">The app is read-only here. Pausing or changing the copy desk is done by you through the desk settings (change_log, who = you).</div></div>';
+    else if (kind === "language") h = '<div class="card">App language: <b>English</b><div class="muted sm" style="margin-top:8px">Display only. No desk setting changes from here.</div></div>';
+    openLayer({ accounts: "Accounts", filters: "Filters", recent: "Recent Trades", status: "Status", alerts: "Pause Alerts", language: "Language" }[kind] || "Whale Tracker", "", h);
+  }
+
+  /* CONFETTI: only when the last closed session ended above its start cash (nights table), once per session id */
+  function maybeConfetti() {
+    var lc = ((S.agents || {}).session || {}).lastClosed; if (!lc || !lc.profit || reduce) return;
+    var key = "desk.confetti." + lc.id; if (localStorage.getItem(key)) return; localStorage.setItem(key, "1");
+    var cv = document.createElement("canvas"); cv.className = "confetti"; document.body.appendChild(cv);
+    var W = cv.width = innerWidth, H = cv.height = innerHeight, x = cv.getContext("2d"), cols = ["#00d35a", "#ffd60a", "#0a84ff", "#ff9f0a", "#bf5af2", "#ff453a"], P = [];
+    for (var i = 0; i < 140; i++) P.push({ x: Math.random() * W, y: -Math.random() * H * 0.5, vx: (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 4, r: Math.random() * 6.28, c: cols[i % cols.length] });
+    var t = 0; (function f() { x.clearRect(0, 0, W, H); P.forEach(function (p) { p.x += p.vx; p.y += p.vy; p.r += 0.1; x.save(); x.translate(p.x, p.y); x.rotate(p.r); x.fillStyle = p.c; x.fillRect(-4, -2, 8, 4); x.restore(); }); if (++t < 180) requestAnimationFrame(f); else cv.remove(); })();
+    toast("Session closed in profit: " + money(lc.pnl));
+  }
+  function renderDesign() { renderChange(); renderMessages(); renderWhale(); maybeConfetti(); }
+
   /* ---------- tabs & events ---------- */
   function setTab(t) {
     if (["home", "bots", "activity", "market", "journal", "account"].indexOf(t) < 0) t = "home";
@@ -737,8 +926,11 @@
     if (t.closest("#cancel-sheet") || t.id === "sheet-scrim") return closeSheet();
     if (t.closest("#screen-card")) return openScreenFull();
     var rb = t.closest("#range-switch button");
-    if (rb) { S.range = rb.dataset.range; $$("#range-switch button").forEach(function (b) { b.classList.toggle("on", b === rb); }); get.chart(S.range).then(function (c) { S.chart = c; renderChart(); }).catch(function () {}); return; }
-    var card = t.closest(".bot-card"); if (card) { setTab("bots"); var el = $("#bot-" + card.dataset.bot); if (el) el.scrollIntoView(); return; }
+    if (rb) { S.range = rb.dataset.range; $$("#range-switch button").forEach(function (b) { b.classList.toggle("on", b === rb); }); if (planB()) { renderChart(); return; } get.chart(S.range).then(function (c) { S.chart = c; renderChart(); }).catch(function () {}); return; }
+    var card = t.closest(".ag-card"); if (card) { setTab("bots"); var el = $("#bot-" + AGENT_SRC[card.dataset.agent]); if (el) setTimeout(function () { el.scrollIntoView(); }, 50); return; }
+    var mr = t.closest(".msg-row"); if (mr) { var sm = seenMap(); sm[mr.dataset.msg] = Math.floor(Date.now() / 1000); localStorage.setItem("desk.msgSeen", JSON.stringify(sm)); renderMessages(); var src = AGENT_SRC[mr.dataset.msg]; var be = src && $("#bot-" + src); if (be) be.scrollIntoView({ behavior: "smooth" }); else setTab("activity"); return; }
+    var wb = t.closest("[data-whale]"); if (wb) return openWhale(wb.dataset.whale);
+    var go = t.closest("[data-go]"); if (go) return setTab(go.dataset.go);
     var st = t.closest("[data-settings]"); if (st) { setTab("account"); var go = function () { var g = $("#set-" + st.dataset.settings); if (g) g.scrollIntoView(); }; setTimeout(go, 400); return; }
     var row = t.closest(".row[data-mint]");
     if (row && row.dataset.mint) { closeSheet(); return row.dataset.kind === "rejected" ? openAudit(row.dataset.mint) : openCoin(row.dataset.mint); }
@@ -753,7 +945,9 @@
     var nxt = S.activity && S.activity.next; if (!nxt) return;
     get.activity(nxt).then(function (r) { S.activity.rows = S.activity.rows.concat(r.rows || []); S.activity.next = r.next; renderActivityTab(); });
   };
-  window.addEventListener("resize", function () { if (S.chart) renderChart(); });
+  window.addEventListener("resize", function () { if (S.chart || S.charts) renderChart(); });
+  $("#bot-carousel").addEventListener("scroll", function () { syncDots(); }, { passive: true });
+  $("#avatar-letter").outerHTML = mascot("grok", 32);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) refreshSoon(); });
 
   /* ---------- boot ---------- */
